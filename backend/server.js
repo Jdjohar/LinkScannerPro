@@ -12,6 +12,7 @@ const { initSocket } = require('./src/socket');
 const authRoutes = require('./src/routes/authRoutes');
 const domainRoutes = require('./src/routes/domainRoutes');
 const reportRoutes = require('./src/routes/reportRoutes');
+const settingsRoutes = require('./src/routes/settingsRoutes');
 
 // Service imports
 const { initScheduler } = require('./src/services/schedulerService');
@@ -43,6 +44,7 @@ app.use(morgan('dev'));
 app.use('/api/auth', authRoutes);
 app.use('/api/domains', domainRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Root Route
 app.get('/', (req, res) => {

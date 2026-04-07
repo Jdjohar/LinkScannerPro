@@ -1,38 +1,68 @@
 const cron = require('node-cron');
 const Domain = require('../models/Domain');
+const Settings = require('../models/Settings');
 const { startScan } = require('./crawlerService');
 
+let currentJob = null;
+
 /**
- * Initializes the scheduler with daily tasks
+ * Initializes the scheduler with daily tasks from database
  */
-const initScheduler = () => {
+const initScheduler = async () => {
   console.log('Initializing Scheduler...');
 
-  // Run every day at midnight
-  // cron.schedule('0 0 * * *', async () => {
+  try {
+    // 1. Get cronTime from Settings (fallback to midnight)
+    let cronConfig = await Settings.findOne({ key: 'cronTime' });
+    let cronTime = cronConfig ? cronConfig.value : '0 0 * * *'; // Default to 00:00
 
-  // For production, maybe run every 6 hours or 12 hours depending on volume
-  // For testing, user can trigger "Scan Now"
-
-  cron.schedule('26 18 * * *', async () => {
-    console.log('Running daily scan job at midnight...');
-    try {
-      const domains = await Domain.find({});
-      console.log(`Found ${domains.length} domains to scan.`);
-
-      for (const domain of domains) {
-        // We run them one by one to avoid overwhelming the server
-        // In a real production environment with 1000s of domains, 
-        // we would use a queue system like BullMQ.
-        console.log(`Auto-triggering scan for ${domain.url}...`);
-        await startScan(domain._id);
-      }
-    } catch (error) {
-      console.error('Error in cron job:', error);
-    }
-  });
-
-  console.log('Daily scan job scheduled at 00:00 (Midnight)');
+    console.log(`Setting up daily scan job at: ${cronTime}`);
+    scheduleJob(cronTime);
+    
+  } catch (error) {
+    console.error('Error initializing scheduler:', error);
+    // Fallback if settings fail
+    scheduleJob('0 0 * * *');
+  }
 };
 
-module.exports = { initScheduler };
+/**
+ * Creates the cron job
+ */
+const scheduleJob = (time) => {
+    if (currentJob) {
+        currentJob.stop();
+    }
+
+    // Convert "HH:mm" to cron format "mm HH * * *" if needed
+    let cronPattern = time;
+    if (time.includes(':') && !time.includes('*')) {
+        const [hour, minute] = time.split(':');
+        cronPattern = `${minute} ${hour} * * *`;
+    }
+
+    currentJob = cron.schedule(cronPattern, async () => {
+        console.log(`Running scheduled daily scan job (${time})...`);
+        try {
+            const domains = await Domain.find({});
+            for (const domain of domains) {
+                console.log(`[Auto-Scan] Starting for ${domain.url}...`);
+                await startScan(domain._id);
+            }
+        } catch (error) {
+            console.error('Error in cron job execution:', error);
+        }
+    });
+
+    console.log(`Daily scan job scheduled with pattern: ${cronPattern}`);
+};
+
+/**
+ * External interface to update schedule
+ */
+const updateSchedule = (newTime) => {
+    console.log(`Updating scheduler to new time: ${newTime}`);
+    scheduleJob(newTime);
+};
+
+module.exports = { initScheduler, updateSchedule };

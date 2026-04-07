@@ -29,6 +29,8 @@ export default function Dashboard() {
   const [selectedReport, setSelectedReport] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportSearch, setReportSearch] = useState('');
+  const [cronTime, setCronTime] = useState('00:00');
+  const [isUpdatingCron, setIsUpdatingCron] = useState(false);
   
   // Progress State
   const [activeScan, setActiveScan] = useState(null);
@@ -36,12 +38,24 @@ export default function Dashboard() {
 
   const router = useRouter();
 
+  const fetchSettings = useCallback(async () => {
+    try {
+      const { data } = await api.get('/settings');
+      const cronSetting = data.find(s => s.key === 'cronTime');
+      if (cronSetting) setCronTime(cronSetting.value);
+    } catch (err) {
+      console.error('Failed to fetch settings');
+    }
+  }, []);
+
   const fetchDomains = useCallback(async () => {
     try {
       const { data } = await api.get('/domains');
       setDomains(data);
+      return data;
     } catch (err) {
       console.error('Failed to fetch domains');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -51,16 +65,36 @@ export default function Dashboard() {
     const userInfo = localStorage.getItem('userInfo');
     if (!userInfo) {
       router.push('/login');
-    } else {
-      setUser(JSON.parse(userInfo));
-      fetchDomains();
+      return;
     }
+    
+    const currentUser = JSON.parse(userInfo);
+    setUser(currentUser);
 
     // Initialize Socket.io
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
     socketRef.current = io(backendUrl.replace(/\/api$/, ''), {
       withCredentials: true,
       transports: ['websocket', 'polling']
+    });
+
+    socketRef.current.on('connect', () => {
+      console.log('Connected to socket engine');
+      // Fetch initial data
+      fetchSettings();
+      fetchDomains().then(data => {
+        const scanningDomain = data.find(d => d.status === 'scanning');
+        if (scanningDomain) {
+          socketRef.current.emit('join-scan', scanningDomain._id);
+          setActiveScan({
+            domainId: scanningDomain._id,
+            url: scanningDomain.url,
+            progress: 0,
+            pagesScanned: 0,
+            brokenCount: 0
+          });
+        }
+      });
     });
 
     socketRef.current.on('scan:progress', (data) => {
@@ -134,9 +168,32 @@ export default function Dashboard() {
     }
   };
 
+  const handleUpdateCron = async () => {
+    setIsUpdatingCron(true);
+    try {
+      await api.post('/settings', { key: 'cronTime', value: cronTime });
+      alert('Daily scan schedule updated successfully!');
+    } catch (err) {
+      alert('Failed to update schedule');
+    } finally {
+      setIsUpdatingCron(false);
+    }
+  };
+
   const triggerScan = async (id) => {
     try {
       await api.post(`/domains/${id}/scan`);
+      if (socketRef.current) {
+        socketRef.current.emit('join-scan', id);
+        const domainObj = domains.find(d => d._id === id);
+        setActiveScan({
+          domainId: id,
+          url: domainObj?.url || 'Scanning...',
+          progress: 0,
+          pagesScanned: 0,
+          brokenCount: 0
+        });
+      }
       fetchDomains();
     } catch (err) {
       alert('Failed to trigger scan');
@@ -294,6 +351,40 @@ export default function Dashboard() {
             <span>Audit Domain</span>
           </button>
         </div>
+
+        {/* Global Settings */}
+        <motion.section 
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-zinc-900/40 border border-white/5 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6"
+        >
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-zinc-800 rounded-2xl">
+              <Clock className="w-5 h-5 text-blue-500" />
+            </div>
+            <div>
+              <h4 className="font-bold text-sm">Automated Daily Surveillance</h4>
+              <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">Global audit schedule for all domains</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3 bg-black/40 p-2 rounded-2xl border border-white/5">
+            <input 
+              type="time" 
+              value={cronTime}
+              onChange={(e) => setCronTime(e.target.value)}
+              className="bg-transparent border-none text-white font-mono font-bold text-lg focus:ring-0 px-4"
+            />
+            <button 
+              onClick={handleUpdateCron}
+              disabled={isUpdatingCron}
+              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl transition-all active:scale-95 flex items-center gap-2"
+            >
+              {isUpdatingCron ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle className="w-3 h-3" />}
+              Update
+            </button>
+          </div>
+        </motion.section>
 
         {/* Table */}
         <section className="bg-[#0a0a0a] rounded-3xl border border-white/5 overflow-hidden shadow-2xl">

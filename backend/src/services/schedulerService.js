@@ -41,8 +41,13 @@ const scheduleJob = (time) => {
         cronPattern = `${minute} ${hour} * * *`;
     }
 
+    const options = {
+        scheduled: true,
+        timezone: "Asia/Kolkata"
+    };
+
     currentJob = cron.schedule(cronPattern, async () => {
-        console.log(`Running scheduled daily scan job (${time})...`);
+        console.log(`Running scheduled daily scan job (${time} IST)...`);
         try {
             const domains = await Domain.find({});
             for (const domain of domains) {
@@ -52,9 +57,9 @@ const scheduleJob = (time) => {
         } catch (error) {
             console.error('Error in cron job execution:', error);
         }
-    });
+    }, options);
 
-    console.log(`Daily scan job scheduled with pattern: ${cronPattern}`);
+    console.log(`Daily scan job (IST) scheduled with pattern: ${cronPattern}`);
 };
 
 /**

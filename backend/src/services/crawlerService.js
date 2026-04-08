@@ -124,7 +124,7 @@ const checkLink = async (url, retries = 3, backoff = 2000) => {
       console.log(`[CHECK] Fetching: ${url} (Attempt ${i + 1}/${retries + 1})`);
 
       const response = await axios.get(url, {
-        validateStatus: () => true,
+        validateStatus: (status) => status >= 200 && status < 400, // Allow redirects and all 2xx
         maxRedirects: 8,
         timeout: 25000,
         headers: {
@@ -230,15 +230,21 @@ const crawl = async (domainId, startUrl, maxDepth = 3, maxPages = 200) => {
       await sleep(baseDelay + jitter);
 
       console.log(`[PAGE] Crawling: ${url}`);
-      const response = await axios.get(url, { timeout: 30000 });
+      const response = await axios.get(url, { 
+        timeout: 30000,
+        headers: browserHeaders,
+        validateStatus: (status) => status >= 200 && status < 400 // Allow 2xx and 3xx
+      });
 
+      const isSuccess = response.status >= 200 && response.status < 300;
+      
       if (isBlocked(response)) {
         console.error(`[BLOCK] Main Crawler blocked on: ${url}`);
         continue; // Skip this page
       }
 
-      if (response.status !== 200) {
-        console.warn(`[SKIP] Page returned non-200 status: ${response.status}`);
+      if (!isSuccess) {
+        console.warn(`[SKIP] Page returned non-success status: ${response.status}`);
         continue;
       }
 

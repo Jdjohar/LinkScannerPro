@@ -92,10 +92,28 @@ const triggerScan = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Reset stuck scan
+// @route   PUT /api/domains/:id/reset
+// @access  Private
+const resetScan = asyncHandler(async (req, res) => {
+  const domain = await Domain.findById(req.params.id);
+
+  if (domain) {
+    domain.status = 'pending';
+    domain.scanStartedAt = null;
+    await domain.save();
+    res.json({ message: 'Scan status reset to pending', domain });
+  } else {
+    res.status(404);
+    throw new Error('Domain not found');
+  }
+});
+
 module.exports = {
   getDomains,
   addDomain,
   updateDomain,
   deleteDomain,
   triggerScan,
+  resetScan,
 };

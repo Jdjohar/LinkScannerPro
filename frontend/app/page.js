@@ -8,7 +8,7 @@ import {
   Plus, Search, Trash2, Edit3, Play, 
   CheckCircle, AlertCircle, Clock, Loader2, LogOut,
   Globe, Mail, LayoutDashboard, Activity, Zap,
-  FileText, ExternalLink, X, Filter
+  FileText, ExternalLink, X, Filter, RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -95,6 +95,19 @@ export default function Dashboard() {
           });
         }
       });
+    });
+
+    socketRef.current.on('scan:started:global', (data) => {
+      console.log('Background scan detected:', data.url);
+      socketRef.current.emit('join-scan', data.domainId);
+      setActiveScan({
+        domainId: data.domainId,
+        url: data.url,
+        progress: 0,
+        pagesScanned: 0,
+        brokenCount: 0
+      });
+      fetchDomains();
     });
 
     socketRef.current.on('scan:progress', (data) => {
@@ -197,6 +210,18 @@ export default function Dashboard() {
       fetchDomains();
     } catch (err) {
       alert('Failed to trigger scan');
+    }
+  };
+
+  const resetScan = async (id) => {
+    if (confirm('Are you sure you want to force-reset this scan? Use this only if the scan is stuck.')) {
+      try {
+        await api.put(`/domains/${id}/reset`);
+        fetchDomains();
+        setActiveScan(null);
+      } catch (err) {
+        alert('Failed to reset scan');
+      }
     }
   };
   
@@ -395,6 +420,7 @@ export default function Dashboard() {
                   <th className="px-8 py-5 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Target Domain</th>
                   <th className="px-8 py-5 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Health Status</th>
                   <th className="px-8 py-5 text-[10px] font-black text-zinc-500 uppercase tracking-widest hidden md:table-cell">Last Audit</th>
+                  <th className="px-8 py-5 text-[10px] font-black text-zinc-500 uppercase tracking-widest hidden lg:table-cell">Next Audit</th>
                   <th className="px-8 py-5 text-[10px] font-black text-zinc-500 uppercase tracking-widest">Issues Found</th>
                   <th className="px-8 py-5 text-[10px] font-black text-zinc-500 uppercase tracking-widest text-right">Commands</th>
                 </tr>
@@ -415,10 +441,13 @@ export default function Dashboard() {
                       </div>
                     </td>
                     <td className="px-8 py-6">
-                      <StatusBadge status={domain.status} />
+                      <StatusBadge status={domain.status} scanStartedAt={domain.scanStartedAt} />
                     </td>
                     <td className="px-8 py-6 text-xs text-zinc-500 hidden md:table-cell font-mono">
                       {domain.lastScanDate ? new Date(domain.lastScanDate).toLocaleDateString() : 'Pending'}
+                    </td>
+                    <td className="px-8 py-6 text-xs text-zinc-400 hidden lg:table-cell font-mono opacity-60">
+                      {domain.nextScanDate ? new Date(domain.nextScanDate).toLocaleDateString() : '--'}
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex items-center space-x-2">
@@ -444,6 +473,14 @@ export default function Dashboard() {
                           tooltip="Run Audit"
                           disabled={domain.status === 'scanning'}
                         />
+                        {domain.status === 'scanning' && (
+                          <ActionButton 
+                            onClick={() => resetScan(domain._id)} 
+                            icon={RotateCcw} 
+                            color="text-amber-500" 
+                            tooltip="Force Reset"
+                          />
+                        )}
                         <ActionButton 
                           onClick={() => openModal(domain)} 
                           icon={Edit3} 
@@ -728,7 +765,7 @@ export default function Dashboard() {
 }
 
 // Helper Components
-function StatusBadge({ status }) {
+function StatusBadge({ status, scanStartedAt }) {
   const configs = {
     pending: { color: 'text-zinc-500', bg: 'bg-zinc-500/5', icon: Clock, text: 'Idling' },
     scanning: { color: 'text-blue-400', bg: 'bg-blue-500/10', icon: Activity, text: 'Scanning' },
@@ -737,10 +774,20 @@ function StatusBadge({ status }) {
   };
 
   const config = configs[status] || configs.pending;
+  
   return (
-    <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-full ${config.bg} ${config.color} border border-white/5`}>
-      <config.icon className={`w-3 h-3 ${status === 'scanning' ? 'animate-pulse' : ''}`} />
-      <span className="text-[10px] font-black uppercase tracking-widest">{config.text}</span>
+    <div className="group relative inline-block">
+      <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-full ${config.bg} ${config.color} border border-white/5`}>
+        <config.icon className={`w-3 h-3 ${status === 'scanning' ? 'animate-pulse' : ''}`} />
+        <span className="text-[10px] font-black uppercase tracking-widest">{config.text}</span>
+      </div>
+      
+      {status === 'scanning' && scanStartedAt && (
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 border border-white/10 text-[9px] text-zinc-400 rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap z-50">
+          <p className="font-black text-white uppercase tracking-widest mb-1">Audit Started</p>
+          <p className="font-mono">{new Date(scanStartedAt).toLocaleString()}</p>
+        </div>
+      )}
     </div>
   );
 }

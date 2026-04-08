@@ -6,6 +6,7 @@ const {
   updateDomain,
   deleteDomain,
   triggerScan,
+  resetScan,
 } = require('../controllers/domainController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -14,5 +15,6 @@ router.post('/', protect, addDomain);
 router.put('/:id', protect, updateDomain);
 router.delete('/:id', protect, deleteDomain);
 router.post('/:id/scan', protect, triggerScan);
+router.put('/:id/reset', protect, resetScan);
 
 module.exports = router;

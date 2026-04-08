@@ -8,10 +8,48 @@ const { sendEmailReport } = require('./emailService');
 const { getIO } = require('../socket');
 
 // Configure axios defaults
-axios.defaults.timeout = 15000;
-axios.defaults.headers.common['User-Agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+axios.defaults.timeout = 30000; // Point 7: Increase Timeout
+
+const browserHeaders = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Connection': 'keep-alive',
+  'Upgrade-Insecure-Requests': '1',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Cache-Control': 'max-age=0',
+};
+
+axios.defaults.headers.common = browserHeaders;
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Detects if we are being blocked by the website
+ */
+const isBlocked = (response) => {
+  if ([403, 401, 429].includes(response.status)) return true;
+  if (typeof response.data === 'string') {
+    const blockingPatterns = [
+      /access denied/i,
+      /security check/i,
+      /cloudflare/i,
+      /wordfence/i,
+      /complete a challenge/i,
+      /captcha/i,
+      /bot detection/i,
+      /forbidden/i
+    ];
+    // Check first 10k characters for efficiency
+    const content = response.data.substring(0, 10000).toLowerCase();
+    return blockingPatterns.some(pattern => pattern.test(content));
+  }
+  return false;
+};
 
 /**
  * Normalizes and validates a URL
@@ -66,41 +104,55 @@ const isSoft404 = (html) => {
 /**
  * Advanced Link Checker with Redirect Tracking and Soft 404 detection
  */
-const checkLink = async (url, retries = 2, backoff = 1500) => {
+const checkLink = async (url, retries = 3, backoff = 2000) => {
   for (let i = 0; i <= retries; i++) {
+    const startTime = Date.now();
     try {
-      // Mimic a full browser request to avoid 400/403 on social sites
+      console.log(`[CHECK] Fetching: ${url} (Attempt ${i + 1}/${retries + 1})`);
+
       const response = await axios.get(url, {
         validateStatus: () => true,
         maxRedirects: 8,
+        timeout: 25000,
         headers: {
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Referer': new URL(url).origin, // Some sites require Referer
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+          ...browserHeaders,
+          'Referer': new URL(url).origin,
         }
       });
 
-      // Special handling for Social Sites that return 400/403/999 but might be OK
+      const duration = Date.now() - startTime;
+      console.log(`[RESULT] ${url} -> Status: ${response.status} (${duration}ms)`);
+
+      // Point 5: Detect Blocking
+      if (isBlocked(response)) {
+        console.warn(`[BLOCK] Detected blocking on: ${url}`);
+        if (i < retries) {
+          const waitTime = backoff * Math.pow(2, i);
+          console.log(`[RETRY] Blocked. Waiting ${waitTime}ms before retry...`);
+          await sleep(waitTime);
+          continue;
+        }
+        return { statusCode: response.status, isBroken: true, type: 'Blocked/Forbidden' };
+      }
+
+      // Special handling for Social Sites
       const isSocial = /facebook|linkedin|twitter|instagram|youtube/.test(url);
 
-      // Handle Rate Limiting (429)
+      // Point 3: Handle Rate Limiting (429) & Retries
       if (response.status === 429 && i < retries) {
-        await sleep(backoff * Math.pow(2, i));
+        const waitTime = backoff * Math.pow(2, i);
+        console.log(`[RETRY] Rate limited (429). Waiting ${waitTime}ms...`);
+        await sleep(waitTime);
         continue;
       }
 
       const redirectCount = response.request?._redirectable?._redirectCount || 0;
       let isBroken = response.status >= 400 && response.status !== 429;
 
-      // If we got a 400/403 on a social site, but it's external, try a simple HEAD as a fallback
       if (isBroken && isSocial && (response.status === 400 || response.status === 403 || response.status === 999)) {
-        isBroken = false; 
+        isBroken = false;
       }
 
-      // Check for Soft 404
       if (response.status === 200 && typeof response.data === 'string' && isSoft404(response.data)) {
         return { statusCode: response.status, isBroken: true, type: 'Soft 404', redirectCount };
       }
@@ -112,6 +164,8 @@ const checkLink = async (url, retries = 2, backoff = 1500) => {
         redirectCount,
       };
     } catch (error) {
+      const duration = Date.now() - startTime;
+      console.error(`[ERROR] ${url} -> ${error.message} (${duration}ms)`);
       if (i === retries) {
         return {
           statusCode: error.response ? error.response.status : 0,
@@ -119,7 +173,9 @@ const checkLink = async (url, retries = 2, backoff = 1500) => {
           type: 'Timeout/Network Error',
         };
       }
-      await sleep(backoff);
+      const waitTime = backoff * (i + 1);
+      console.log(`[RETRY] Error occurred. Waiting ${waitTime}ms...`);
+      await sleep(waitTime);
     }
   }
 };
@@ -154,10 +210,24 @@ const crawl = async (domainId, startUrl, maxDepth = 3, maxPages = 200) => {
     pagesProcessed++;
 
     try {
-      await sleep(500); // Politeness delay
+      // Point 6: Random Delay Between Requests (Jitter)
+      const baseDelay = 1500;
+      const jitter = Math.random() * 2000;
+      console.log(`[DELAY] Waiting ${Math.round(baseDelay + jitter)}ms before next page...`);
+      await sleep(baseDelay + jitter);
 
-      const response = await axios.get(url, { timeout: 10000 });
-      if (response.status !== 200) continue;
+      console.log(`[PAGE] Crawling: ${url}`);
+      const response = await axios.get(url, { timeout: 30000 });
+
+      if (isBlocked(response)) {
+        console.error(`[BLOCK] Main Crawler blocked on: ${url}`);
+        continue; // Skip this page
+      }
+
+      if (response.status !== 200) {
+        console.warn(`[SKIP] Page returned non-200 status: ${response.status}`);
+        continue;
+      }
 
       const $ = cheerio.load(response.data);
       const linksToCheck = [];
@@ -209,10 +279,11 @@ const crawl = async (domainId, startUrl, maxDepth = 3, maxPages = 200) => {
       });
 
       // Batch link checking for high performance
-      const BATCH_SIZE = 5;
+      // Point 2: Reduce Concurrency HARD (Sequential Processing)
+      const BATCH_SIZE = 1;
       for (let i = 0; i < linksToCheck.length; i += BATCH_SIZE) {
         const batch = linksToCheck.slice(i, i + BATCH_SIZE);
-        
+
         await Promise.all(batch.map(async (item) => {
           let isInternal = false;
           try {
@@ -280,9 +351,13 @@ const startScan = async (domainId) => {
 
   try {
     domain.status = 'scanning';
+    domain.scanStartedAt = new Date();
     await domain.save();
 
-    if (io) io.to(`scan:${domainId}`).emit('scan:started', { url: domain.url });
+    if (io) {
+      io.to(`scan:${domainId}`).emit('scan:started', { url: domain.url });
+      io.emit('scan:started:global', { domainId: domain._id, url: domain.url });
+    }
 
     const results = await crawl(domain._id, domain.url);
 

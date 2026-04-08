@@ -33,6 +33,10 @@ const domainSchema = new mongoose.Schema({
   totalBrokenLinks: {
     type: Number,
     default: 0,
+  },
+  scanStartedAt: {
+    type: Date,
+    default: null,
   }
 }, {
   timestamps: true,

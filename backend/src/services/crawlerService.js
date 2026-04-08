@@ -20,6 +20,7 @@ const TRUSTED_BOTS = [
 ];
 
 let globalUserAgent = TRUSTED_BOTS[0].ua; // Default to FacebookBot for best results
+const SCRAPE_DO_TOKEN = process.env.SCRAPE_DO_TOKEN;
 
 const browserHeaders = {
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
@@ -102,6 +103,23 @@ const fetchWithRotation = async (targetUrl, options = {}, retries = 3) => {
       console.error(`[FETCH-ERROR] ${TRUSTED_BOTS[currentUaIndex].name} failed: ${error.message}`);
       currentUaIndex = (currentUaIndex + 1) % TRUSTED_BOTS.length;
       await sleep(2000);
+    }
+  }
+
+  // --- FINAL NUCLEAR OPTION: Scrape.do Proxy ---
+  if (SCRAPE_DO_TOKEN) {
+    console.log(`[SCRAPE-DO] Standard rotations failed. Using Scrape.do nuclear option for: ${targetUrl}`);
+    try {
+      const proxyUrl = `http://api.scrape.do/?token=${SCRAPE_DO_TOKEN}&url=${encodeURIComponent(targetUrl)}`;
+      const response = await axios.get(proxyUrl, { timeout: 40000 });
+      
+      if (response.status >= 200 && response.status < 300) {
+        console.log(`[SUCCESS] Scrape.do bypassed the shield for: ${targetUrl}`);
+        return response;
+      }
+      lastResponse = response;
+    } catch (error) {
+      console.error(`[SCRAPE-DO-ERROR] Nuclear option failed: ${error.message}`);
     }
   }
 

@@ -230,19 +230,34 @@ const crawl = async (domainId, startUrl, maxDepth = 3, maxPages = 200) => {
       await sleep(baseDelay + jitter);
 
       console.log(`[PAGE] Crawling: ${url}`);
-      const response = await axios.get(url, { 
+      let response = await axios.get(url, { 
         timeout: 30000,
         headers: browserHeaders,
-        validateStatus: (status) => status >= 200 && status < 400 // Allow 2xx and 3xx
+        maxRedirects: 10,
+        validateStatus: (status) => status >= 200 && status < 400 
       });
+
+      // Point 8: Handle 202 Accepted (Common on Render/Data Centers)
+      if (response.status === 202) {
+        console.warn(`[RENDER-BYPASS] Received 202 Accepted for ${url}. Waiting 4 seconds to retry...`);
+        await sleep(4000);
+        response = await axios.get(url, { 
+          timeout: 30000,
+          headers: browserHeaders,
+          maxRedirects: 10,
+          validateStatus: (status) => status >= 200 && status < 400 
+        });
+      }
+
+      console.log(`[DEBUG] ${url} -> Received Status: ${response.status}, Size: ${response.data ? response.data.length : 0} bytes`);
+      
+      if (response.data && typeof response.data === 'string') {
+        const preview = response.data.substring(0, 300).replace(/\s+/g, ' ');
+        console.log(`[DEBUG] Content Preview: ${preview}...`);
+      }
 
       const isSuccess = response.status >= 200 && response.status < 300;
       
-      console.log(`[DEBUG] ${url} -> Status: ${response.status}, Body Length: ${response.data ? response.data.length : 0}`);
-      if (response.data && typeof response.data === 'string') {
-        console.log(`[DEBUG] Content Preview: ${response.data.substring(0, 200).replace(/\n/g, ' ')}...`);
-      }
-
       if (isBlocked(response)) {
         console.error(`[BLOCK] Main Crawler blocked on: ${url}`);
         continue; // Skip this page

@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { io } from 'socket.io-client';
 import api from '@/utils/api';
-import { 
-  Plus, Search, Trash2, Edit3, Play, 
+import {
+  Plus, Search, Trash2, Edit3, Play,
   CheckCircle, AlertCircle, Clock, Loader2, LogOut,
   Globe, Mail, LayoutDashboard, Activity, Zap,
   FileText, ExternalLink, X, Filter, RotateCcw
@@ -23,7 +23,7 @@ export default function Dashboard() {
   const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [user, setUser] = useState(null);
-  
+
   // Report State
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
@@ -31,7 +31,7 @@ export default function Dashboard() {
   const [reportSearch, setReportSearch] = useState('');
   const [cronTime, setCronTime] = useState('00:00');
   const [isUpdatingCron, setIsUpdatingCron] = useState(false);
-  
+
   // Progress State
   const [activeScan, setActiveScan] = useState(null);
   const socketRef = useRef(null);
@@ -67,12 +67,12 @@ export default function Dashboard() {
       router.push('/login');
       return;
     }
-    
+
     const currentUser = JSON.parse(userInfo);
     setUser(currentUser);
 
     // Initialize Socket.io
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://linkscannerpro.onrender.com';
     socketRef.current = io(backendUrl.replace(/\/api$/, ''), {
       withCredentials: true,
       transports: ['websocket', 'polling']
@@ -154,7 +154,7 @@ export default function Dashboard() {
     e.preventDefault();
     setSubmitting(true);
     const emails = secondaryEmails.split(',').map(e => e.trim()).filter(e => e !== '');
-    
+
     try {
       if (currentDomain) {
         await api.put(`/domains/${currentDomain._id}`, { url, primaryEmail, secondaryEmails: emails });
@@ -224,7 +224,7 @@ export default function Dashboard() {
       }
     }
   };
-  
+
   const viewReport = async (domainId) => {
     setReportLoading(true);
     setShowReportModal(true);
@@ -239,7 +239,7 @@ export default function Dashboard() {
     }
   };
 
-  const filteredDomains = domains.filter(d => 
+  const filteredDomains = domains.filter(d =>
     d.url.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -274,7 +274,7 @@ export default function Dashboard() {
             <p className="text-sm font-semibold">{user?.email}</p>
             <p className="text-[10px] text-zinc-500 uppercase tracking-widest">Administrator</p>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
             className="p-2 hover:bg-white/5 rounded-full transition-colors text-zinc-400 hover:text-white border border-transparent hover:border-white/10"
           >
@@ -287,7 +287,7 @@ export default function Dashboard() {
         {/* Progress Overlay */}
         <AnimatePresence>
           {activeScan && (
-            <motion.div 
+            <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -300,13 +300,13 @@ export default function Dashboard() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                   <div className="space-y-1">
                     <h3 className="text-lg font-bold flex items-center gap-2">
-                       Active Audit in Progress
+                      Active Audit in Progress
                     </h3>
                     <p className="text-sm text-zinc-400 truncate max-w-md font-mono">
                       {activeScan.currentUrl}
                     </p>
                   </div>
-                  
+
                   <div className="flex items-center gap-8">
                     <div className="text-center">
                       <p className="text-[10px] text-zinc-500 uppercase">Pages</p>
@@ -317,7 +317,7 @@ export default function Dashboard() {
                       <p className="text-xl font-bold text-red-500">{activeScan.brokenCount}</p>
                     </div>
                     <div className="w-32 bg-zinc-900 h-2 rounded-full overflow-hidden">
-                      <motion.div 
+                      <motion.div
                         initial={{ width: 0 }}
                         animate={{ width: `${activeScan.progress}%` }}
                         className="h-full bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]"
@@ -338,7 +338,7 @@ export default function Dashboard() {
             { label: 'Broken Resources', value: stats.broken, icon: AlertCircle, color: 'text-red-500', bg: 'bg-red-500/10' },
             { label: 'Engines Active', value: stats.scanning, icon: Activity, color: 'text-green-500', bg: 'bg-green-500/10' },
           ].map((stat, i) => (
-            <motion.div 
+            <motion.div
               key={i}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
@@ -360,15 +360,15 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="relative flex-1 max-w-lg">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-            <input 
-              type="text" 
+            <input
+              type="text"
               placeholder="Search domains by name or URL..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-2xl py-3.5 pl-12 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 transition-all placeholder:text-zinc-600"
             />
           </div>
-          <button 
+          <button
             onClick={() => openModal()}
             className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold px-8 py-3.5 rounded-2xl transition-all flex items-center justify-center space-x-2 shadow-lg shadow-blue-600/20 active:scale-95"
           >
@@ -378,7 +378,7 @@ export default function Dashboard() {
         </div>
 
         {/* Global Settings */}
-        <motion.section 
+        <motion.section
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-zinc-900/40 border border-white/5 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6"
@@ -392,15 +392,15 @@ export default function Dashboard() {
               <p className="text-[10px] text-zinc-500 uppercase tracking-widest mt-0.5">Global audit schedule for all domains</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-3 bg-black/40 p-2 rounded-2xl border border-white/5">
-            <input 
-              type="time" 
+            <input
+              type="time"
               value={cronTime}
               onChange={(e) => setCronTime(e.target.value)}
               className="bg-transparent border-none text-white font-mono font-bold text-lg focus:ring-0 px-4"
             />
-            <button 
+            <button
               onClick={handleUpdateCron}
               disabled={isUpdatingCron}
               className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-[10px] font-black uppercase tracking-widest px-6 py-3 rounded-xl transition-all active:scale-95 flex items-center gap-2"
@@ -427,7 +427,7 @@ export default function Dashboard() {
               </thead>
               <tbody className="divide-y divide-white/[0.03]">
                 {filteredDomains.map((domain, i) => (
-                  <motion.tr 
+                  <motion.tr
                     key={domain._id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -459,39 +459,39 @@ export default function Dashboard() {
                     </td>
                     <td className="px-8 py-6 text-right">
                       <div className="flex items-center justify-end space-x-3">
-                        <ActionButton 
-                          onClick={() => viewReport(domain._id)} 
-                          icon={FileText} 
-                          color="text-blue-400" 
+                        <ActionButton
+                          onClick={() => viewReport(domain._id)}
+                          icon={FileText}
+                          color="text-blue-400"
                           tooltip="View Report"
                           disabled={domain.status === 'scanning' || !domain.lastScanDate}
                         />
-                        <ActionButton 
-                          onClick={() => triggerScan(domain._id)} 
-                          icon={Play} 
-                          color="text-green-500" 
+                        <ActionButton
+                          onClick={() => triggerScan(domain._id)}
+                          icon={Play}
+                          color="text-green-500"
                           tooltip="Run Audit"
                           disabled={domain.status === 'scanning'}
                         />
                         {domain.status === 'scanning' && (
-                          <ActionButton 
-                            onClick={() => resetScan(domain._id)} 
-                            icon={RotateCcw} 
-                            color="text-amber-500" 
+                          <ActionButton
+                            onClick={() => resetScan(domain._id)}
+                            icon={RotateCcw}
+                            color="text-amber-500"
                             tooltip="Force Reset"
                           />
                         )}
-                        <ActionButton 
-                          onClick={() => openModal(domain)} 
-                          icon={Edit3} 
-                          color="text-zinc-400" 
-                          tooltip="Settings" 
+                        <ActionButton
+                          onClick={() => openModal(domain)}
+                          icon={Edit3}
+                          color="text-zinc-400"
+                          tooltip="Settings"
                         />
-                        <ActionButton 
-                          onClick={() => deleteDomain(domain._id)} 
-                          icon={Trash2} 
-                          color="text-red-500" 
-                          tooltip="Remove" 
+                        <ActionButton
+                          onClick={() => deleteDomain(domain._id)}
+                          icon={Trash2}
+                          color="text-red-500"
+                          tooltip="Remove"
                         />
                       </div>
                     </td>
@@ -514,14 +514,14 @@ export default function Dashboard() {
       <AnimatePresence>
         {showModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowModal(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-md" 
+              className="absolute inset-0 bg-black/80 backdrop-blur-md"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -541,9 +541,9 @@ export default function Dashboard() {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Target URL</label>
                   <div className="relative">
                     <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <input 
-                      type="url" 
-                      required 
+                    <input
+                      type="url"
+                      required
                       placeholder="https://yourwebsite.com"
                       value={url}
                       onChange={(e) => setUrl(e.target.value)}
@@ -556,9 +556,9 @@ export default function Dashboard() {
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Reporting Endpoint (Primary)</label>
                   <div className="relative">
                     <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                    <input 
-                      type="email" 
-                      required 
+                    <input
+                      type="email"
+                      required
                       placeholder="admin@startup.com"
                       value={primaryEmail}
                       onChange={(e) => setPrimaryEmail(e.target.value)}
@@ -569,7 +569,7 @@ export default function Dashboard() {
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Internal Stakeholders (Comma separated)</label>
-                  <textarea 
+                  <textarea
                     rows="2"
                     placeholder="dev@team.com, marketing@team.com"
                     value={secondaryEmails}
@@ -579,15 +579,15 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex gap-4 pt-4">
-                  <button 
-                    type="button" 
+                  <button
+                    type="button"
                     onClick={() => setShowModal(false)}
                     className="flex-1 px-4 py-4 bg-zinc-900 hover:bg-zinc-800 rounded-2xl transition-all font-bold text-zinc-400 border border-white/5"
                   >
                     Discard
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     disabled={submitting}
                     className="flex-[2] px-4 py-4 bg-blue-600 hover:bg-blue-700 rounded-2xl transition-all font-black flex items-center justify-center space-x-2 shadow-lg shadow-blue-600/20 text-white"
                   >
@@ -604,14 +604,14 @@ export default function Dashboard() {
       <AnimatePresence>
         {showReportModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowReportModal(false)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md" 
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
             />
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -628,7 +628,7 @@ export default function Dashboard() {
                     {selectedReport?.domain?.url || 'Fetching data...'}
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => setShowReportModal(false)}
                   className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl text-zinc-400 transition-all active:scale-90"
                 >
@@ -668,8 +668,8 @@ export default function Dashboard() {
                     {/* Filters & Search */}
                     <div className="relative">
                       <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-600" />
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         placeholder="Filter findings by URL or error type..."
                         value={reportSearch}
                         onChange={(e) => setReportSearch(e.target.value)}
@@ -690,49 +690,49 @@ export default function Dashboard() {
                         </thead>
                         <tbody className="divide-y divide-white/[0.05]">
                           {selectedReport.brokenLinks
-                            .filter(l => 
-                              l.brokenUrl.toLowerCase().includes(reportSearch.toLowerCase()) || 
+                            .filter(l =>
+                              l.brokenUrl.toLowerCase().includes(reportSearch.toLowerCase()) ||
                               l.errorType?.toLowerCase().includes(reportSearch.toLowerCase())
                             )
                             .map((link, i) => (
-                            <tr key={i} className="hover:bg-white/[0.02] transition-colors">
-                              <td className="px-6 py-4">
-                                <div className="flex flex-col max-w-sm">
-                                  <a 
-                                    href={link.brokenUrl} 
-                                    target="_blank" 
-                                    rel="noopener noreferrer" 
-                                    className="text-xs font-bold text-red-500 hover:underline truncate flex items-center gap-1.5"
+                              <tr key={i} className="hover:bg-white/[0.02] transition-colors">
+                                <td className="px-6 py-4">
+                                  <div className="flex flex-col max-w-sm">
+                                    <a
+                                      href={link.brokenUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-xs font-bold text-red-500 hover:underline truncate flex items-center gap-1.5"
+                                    >
+                                      {link.brokenUrl}
+                                      <ExternalLink className="w-3 h-3" />
+                                    </a>
+                                    <span className="text-[10px] text-zinc-600 mt-1 font-mono uppercase">{link.errorType || 'Broken'}</span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase rounded-md border border-white/5">
+                                    {link.type}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-black text-zinc-300">{link.statusCode || '???'}</span>
+                                    {link.statusCode === 404 && <span className="text-[10px] text-red-500/60 uppercase font-black">Dead</span>}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <a
+                                    href={link.pageUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] text-zinc-500 hover:text-blue-400 transition-colors truncate max-w-[150px] block"
                                   >
-                                    {link.brokenUrl}
-                                    <ExternalLink className="w-3 h-3" />
+                                    {link.pageUrl}
                                   </a>
-                                  <span className="text-[10px] text-zinc-600 mt-1 font-mono uppercase">{link.errorType || 'Broken'}</span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className="px-2 py-0.5 bg-zinc-800 text-zinc-400 text-[9px] font-black uppercase rounded-md border border-white/5">
-                                  {link.type}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs font-black text-zinc-300">{link.statusCode || '???'}</span>
-                                  {link.statusCode === 404 && <span className="text-[10px] text-red-500/60 uppercase font-black">Dead</span>}
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <a 
-                                  href={link.pageUrl} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer" 
-                                  className="text-[10px] text-zinc-500 hover:text-blue-400 transition-colors truncate max-w-[150px] block"
-                                >
-                                  {link.pageUrl}
-                                </a>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                              </tr>
+                            ))}
                           {selectedReport.brokenLinks.length === 0 && (
                             <tr>
                               <td colSpan="4" className="px-6 py-12 text-center text-zinc-500 italic">No broken links found in this scan.</td>
@@ -746,10 +746,10 @@ export default function Dashboard() {
                   <div className="h-64 flex items-center justify-center text-zinc-500">No report data available.</div>
                 )}
               </div>
-              
+
               {/* Footer */}
               <div className="p-6 border-t border-white/5 bg-white/[0.01] flex justify-end">
-                 <button 
+                <button
                   onClick={() => setShowReportModal(false)}
                   className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-black rounded-xl shadow-lg shadow-blue-600/20 transition-all"
                 >
@@ -774,14 +774,14 @@ function StatusBadge({ status, scanStartedAt }) {
   };
 
   const config = configs[status] || configs.pending;
-  
+
   return (
     <div className="group relative inline-block">
       <div className={`inline-flex items-center space-x-2 px-3 py-1.5 rounded-full ${config.bg} ${config.color} border border-white/5`}>
         <config.icon className={`w-3 h-3 ${status === 'scanning' ? 'animate-pulse' : ''}`} />
         <span className="text-[10px] font-black uppercase tracking-widest">{config.text}</span>
       </div>
-      
+
       {status === 'scanning' && scanStartedAt && (
         <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 border border-white/10 text-[9px] text-zinc-400 rounded-lg opacity-0 group-hover:opacity-100 transition-all pointer-events-none whitespace-nowrap z-50">
           <p className="font-black text-white uppercase tracking-widest mb-1">Audit Started</p>
@@ -794,7 +794,7 @@ function StatusBadge({ status, scanStartedAt }) {
 
 function ActionButton({ onClick, icon: Icon, color, tooltip, disabled }) {
   return (
-    <button 
+    <button
       onClick={onClick}
       disabled={disabled}
       className={`p-2.5 rounded-xl bg-white/[0.03] hover:bg-white/[0.08] transition-all ${color} disabled:opacity-20 disabled:pointer-events-none group relative border border-white/5`}

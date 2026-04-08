@@ -11,7 +11,7 @@ const { getIO } = require('../socket');
 axios.defaults.timeout = 30000; // Point 7: Increase Timeout
 
 const browserHeaders = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
   'Accept-Language': 'en-US,en;q=0.9',
   'Accept-Encoding': 'gzip, deflate, br',
@@ -237,13 +237,30 @@ const crawl = async (domainId, startUrl, maxDepth = 3, maxPages = 200) => {
         validateStatus: (status) => status >= 200 && status < 400 
       });
 
-      // Point 8: Handle 202 Accepted (Common on Render/Data Centers)
-      if (response.status === 202) {
-        console.warn(`[RENDER-BYPASS] Received 202 Accepted for ${url}. Waiting 4 seconds to retry...`);
-        await sleep(4000);
-        response = await axios.get(url, { 
+      // Point 8: Handle 202 Accepted & SiteGround "sgcaptcha" Challenges
+      if (response.status === 202 || (response.data && typeof response.data === 'string' && response.data.includes('http-equiv="refresh"'))) {
+        console.warn(`[BYPASS] Challenge detected for ${url}. Attempting security bypass...`);
+        
+        let refreshUrl = url;
+        if (response.data && typeof response.data === 'string') {
+          const match = response.data.match(/content="0;url=([^"]+)"/i) || response.data.match(/content="0;\s*([^"]+)"/i);
+          if (match && match[1]) {
+            refreshUrl = new URL(match[1], url).toString();
+            console.log(`[SG-BYPASS] Following meta-refresh to: ${refreshUrl}`);
+          }
+        }
+
+        // Capture cookies to pass the challenge
+        const cookies = response.headers['set-cookie'];
+        await sleep(3000); // Wait for the "acceptance" window
+
+        response = await axios.get(refreshUrl, { 
           timeout: 30000,
-          headers: browserHeaders,
+          headers: { 
+            ...browserHeaders, 
+            'Cookie': cookies ? cookies.join('; ') : '',
+            'Referer': url
+          },
           maxRedirects: 10,
           validateStatus: (status) => status >= 200 && status < 400 
         });

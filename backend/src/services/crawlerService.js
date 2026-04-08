@@ -41,13 +41,13 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  * Advanced fetch with automatic User-Agent rotation and challenge bypass
  */
 const fetchWithRotation = async (targetUrl, options = {}, retries = 3) => {
+  const originalUrl = targetUrl;
   let lastResponse = null;
   let currentUaIndex = 0;
   let cookies = [];
 
   for (let attempt = 0; attempt < TRUSTED_BOTS.length && attempt <= retries; attempt++) {
     const ua = TRUSTED_BOTS[currentUaIndex].ua;
-    const startTime = Date.now();
     
     try {
       const response = await axios.get(targetUrl, {
@@ -67,59 +67,45 @@ const fetchWithRotation = async (targetUrl, options = {}, retries = 3) => {
         cookies = [...new Set([...cookies, ...response.headers['set-cookie']])];
       }
 
-      // Detect "sgcaptcha" or meta-refresh challenges
+      // Detect challenges
       const hasMetaRefresh = typeof response.data === 'string' && response.data.includes('http-equiv="refresh"');
       const hasRobotSuspicion = typeof response.data === 'string' && response.data.includes('robot-suspicion');
 
       if (isBlocked(response) || hasMetaRefresh || hasRobotSuspicion) {
-        const reason = hasMetaRefresh ? 'Meta-Refresh' : (hasRobotSuspicion ? 'Robot-Suspicion' : 'Blocked');
-        console.warn(`[ROTATION] ${TRUSTED_BOTS[currentUaIndex].name} hit ${reason} challenge on ${targetUrl}.`);
-        
-        // If meta-refresh found, try to follow it with the SAME UA first
+        // ... rotation logic ...
         if (hasMetaRefresh && attempt === 0) {
           const match = response.data.match(/content="0;url=([^"]+)"/i) || response.data.match(/content="0;\s*([^"]+)"/i);
           if (match && match[1]) {
-            const refreshUrl = new URL(match[1], targetUrl).toString();
-            console.log(`[SG-BYPASS] Following challenge link: ${refreshUrl}`);
-            await sleep(2000);
-            targetUrl = refreshUrl;
-            // Don't increment UA index yet, try the redirect with current identity
+            targetUrl = new URL(match[1], targetUrl).toString();
             continue;
           }
         }
-
-        // Rotate to next identity
         currentUaIndex = (currentUaIndex + 1) % TRUSTED_BOTS.length;
-        console.log(`[ROTATION] Switching to ${TRUSTED_BOTS[currentUaIndex].name}...`);
         await sleep(2000);
         continue;
       }
-
-      // Success! Update the session default UA
-      globalUserAgent = ua;
       return response;
-
     } catch (error) {
-      console.error(`[FETCH-ERROR] ${TRUSTED_BOTS[currentUaIndex].name} failed: ${error.message}`);
       currentUaIndex = (currentUaIndex + 1) % TRUSTED_BOTS.length;
       await sleep(2000);
     }
   }
 
-  // --- FINAL NUCLEAR OPTION: Scrape.do Proxy ---
+  // --- FINAL NUCLEAR OPTION: Scrape.do Proxy with JS Rendering ---
   if (SCRAPE_DO_TOKEN) {
-    console.log(`[SCRAPE-DO] Standard rotations failed. Using Scrape.do nuclear option for: ${targetUrl}`);
+    console.log(`[SCRAPE-DO] Standard rotations failed. Using JS-Render bypass for: ${originalUrl}`);
     try {
-      const proxyUrl = `http://api.scrape.do/?token=${SCRAPE_DO_TOKEN}&url=${encodeURIComponent(targetUrl)}`;
-      const response = await axios.get(proxyUrl, { timeout: 40000 });
+      // Note: We use the ORIGINAL URL here so Scrape.do can handle the challenge from scratch
+      const proxyUrl = `http://api.scrape.do/?token=${SCRAPE_DO_TOKEN}&render=true&url=${encodeURIComponent(originalUrl)}`;
+      const response = await axios.get(proxyUrl, { timeout: 60000 }); // Longer timeout for rendering
       
       if (response.status >= 200 && response.status < 300) {
-        console.log(`[SUCCESS] Scrape.do bypassed the shield for: ${targetUrl}`);
+        console.log(`[SUCCESS] Scrape.do JS-Render bypassed the shield!`);
         return response;
       }
       lastResponse = response;
     } catch (error) {
-      console.error(`[SCRAPE-DO-ERROR] Nuclear option failed: ${error.message}`);
+      console.error(`[SCRAPE-DO-ERROR] JS-Render branch failed: ${error.message}`);
     }
   }
 
